@@ -2,10 +2,16 @@ import tensorflow as tf
 import io
 from PIL import Image
 import numpy as np
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from pydantic import BaseModel
 import pickle
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import os
+import ssl
+import smtplib
+
+load_dotenv()
 
 # Load the Keras model
 image_filter_model = tf.keras.models.load_model("profanify_filter_model.keras")
@@ -27,6 +33,10 @@ def preprocess_new_image(image, img_size=(128, 128)):
 
 class TextInput(BaseModel):
     text: str
+
+class ReviewInput(BaseModel):
+    reviewId: str
+    review: str
 
 origins = [
     "http://localhost",  # Allow local development for front-end
@@ -70,3 +80,36 @@ async def text_predict(text: TextInput):
     is_profane = True if prediction > 0.8 else False
     print(f"Result = {is_profane}")
     return {"statusCode" : 200, "body" : is_profane}
+
+@app.post("/report")
+async def report(request: ReviewInput):
+    print(f"Report received: {request}")
+    # https://realpython.com/python-send-email/
+    email = "brufitz1@gmail.com"
+    smtp_server = "smtp.google.com"
+    port = 587
+    # https://www.geeksforgeeks.org/using-python-environment-variables-with-python-dotenv/
+    password = os.getenv("EMAIL_PASSWORD")
+    context = ssl.create_default_context()
+
+    reviewId = request.reviewId
+    review = request.review
+
+    message = f"""User has reported the review: {reviewId}
+    
+    The Review content for review:
+                {review}"""
+    try:
+        print(f"Sending email to {email}...")
+        with smtplib.SMTP(smtp_server, port) as server:
+            server.starttls() 
+            server.login(email, password)
+            server.sendmail(email, email, message)
+            server.quit()
+            print("Email sent successfully")
+        sent = True
+    except Exception as e:
+        print(e)
+        sent = False
+
+    return {"status_code": 200, "body" : sent}
