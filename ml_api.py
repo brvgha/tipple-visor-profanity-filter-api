@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import os
 import ssl
 import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 load_dotenv()
 
@@ -85,8 +87,9 @@ async def text_predict(text: TextInput):
 async def report(request: ReviewInput):
     print(f"Report received: {request}")
     # https://realpython.com/python-send-email/
-    email = "brufitz1@gmail.com"
-    smtp_server = "smtp.google.com"
+    sender_email = os.getenv("SENDER_EMAIL")
+    receiver_email = os.getenv("RECEIVER_EMAIL")
+    smtp_server = "smtp.gmail.com"
     port = 587
     # https://www.geeksforgeeks.org/using-python-environment-variables-with-python-dotenv/
     password = os.getenv("EMAIL_PASSWORD")
@@ -95,18 +98,23 @@ async def report(request: ReviewInput):
     reviewId = request.reviewId
     review = request.review
 
-    message = f"""User has reported the review: {reviewId}
-    
-    The Review content for review:
-                {review}"""
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message["Subject"] = f"Profanity Report: {reviewId}"
+    body = f"Profanity Report:\n\nReview ID: {reviewId}\n\nReview Content: {review}"
+    message.attach(MIMEText(body, "plain"))
+    message = message.as_string()
     try:
-        print(f"Sending email to {email}...")
-        with smtplib.SMTP(smtp_server, port) as server:
-            server.starttls() 
-            server.login(email, password)
-            server.sendmail(email, email, message)
-            server.quit()
-            print("Email sent successfully")
+        print(f"Sending email to {receiver_email}...")
+        server =  smtplib.SMTP(smtp_server, port)
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, message)
+        server.quit()
+        print("Email sent successfully")
         sent = True
     except Exception as e:
         print(e)
