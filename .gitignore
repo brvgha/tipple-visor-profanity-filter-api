@@ -1,1 +1,2 @@
-.env
+# dont sent the env file to git
+*.env
